@@ -1,15 +1,16 @@
 #include <stdio.h>
+#include <math.h>
 #define  SDL_MAIN_HANDLED
 #include "SDL2/include/SDL2/SDL.h"
 #include "SDL2/include/SDL2/SDL_timer.h"
 #include "SDL2/include/SDL2/SDL_image.h"
 
 // window dimensions
-#define WINDOW_WIDTH (1280)
-#define WINDOW_HEIGHT (720)
+#define WINDOW_WIDTH (640)
+#define WINDOW_HEIGHT (480)
 
 // speed in pixels/second
-#define SCROLL_SPEED (300)
+#define SPEED (300)
 
 int main(int argc, char const *argv[]) {
   // initialisation
@@ -20,7 +21,7 @@ int main(int argc, char const *argv[]) {
   printf("SDL initialised successfully\n");
 
   // create window
-  SDL_Window* win = SDL_CreateWindow("Hello, World!", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, 0);
+  SDL_Window* win = SDL_CreateWindow("Hello, World!", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
 
   // error handling on the window creation
   if (!win) {
@@ -77,36 +78,93 @@ int main(int argc, char const *argv[]) {
   dest.x = (WINDOW_WIDTH - dest.w) / 2;
 
   // require float resolution for y position
-  float y_pos = WINDOW_HEIGHT;
+  float x_pos = (WINDOW_WIDTH - dest.w) / 2;
+  float y_pos = (WINDOW_HEIGHT - dest.h) / 2;
+
+  // give sprite velocity
+  float x_vel = 0;
+  float y_vel = 0;
+
+  // keep track of keyboard inputs
+  int up = 0;
+  int down = 0;
+  int left = 0;
+  int right = 0;
+
+  // set to 1 when (X) button is pressed
+  int close_requested = 0;
 
   // animation loop
-  while (dest.y >= dest.h) {
+  while (!close_requested) {
+    // debugging
+    printf("while loop is happening\n");
+
+    // process events
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+      if (event.type == SDL_QUIT) {
+        close_requested = 1;
+      }
+    }
+
+    // get cursor position relative to window
+    int mouse_x, mouse_y;
+    int buttons = SDL_GetMouseState(&mouse_x, &mouse_y);
+
+    // determine velocity toward mouse
+    int target_x = mouse_x - dest.w / 2;
+    int target_y = mouse_y - dest.h / 2;
+    float delta_x = target_x - x_pos;
+    float delta_y = target_y - y_pos;
+    float distance = sqrt(delta_x * delta_x + delta_y * delta_y);
+
+    // prevent jitter
+    if (distance < 5) {
+      x_vel = y_vel = 0;
+    }
+    else {
+      x_vel = delta_x * SPEED / distance;
+      y_vel = delta_y * SPEED / distance;
+    }
+
+    // reverse velocity
+    if (buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+      x_vel = -x_vel;
+      y_vel = -y_vel;
+    }
+
+    // update positions
+    x_pos += x_vel / 60;
+    y_pos += y_vel / 60;
+
+    // collision detection with bounds
+    if (x_pos <= 0) {
+      x_pos = 0;
+    }
+    if (y_pos <= 0) {
+      y_pos = 0;
+    }
+    if (x_pos >= WINDOW_WIDTH - dest.w) {
+      x_pos = WINDOW_WIDTH - dest.w;
+    }
+    if (y_pos >= WINDOW_HEIGHT - dest.h) {
+      y_pos = WINDOW_HEIGHT - dest.h;
+    }
+
+    // set the positions in the struct
+    dest.y = (int) y_pos;
+    dest.x = (int) x_pos;
+
     // clear the window
     SDL_RenderClear(rend);
-
-    // set the y position in the struct
-    dest.y = (int) y_pos;
 
     // draw the image to the window
     SDL_RenderCopy(rend, tex, NULL, &dest);
     SDL_RenderPresent(rend);
 
-    // update sprite position
-    y_pos -= (float) SCROLL_SPEED / 60;
-
     // wait 1/60th of a second
     SDL_Delay(1000/60);
   }
-
-  // clear the window
-  SDL_RenderClear(rend);
-
-  // draw the image to the window
-  SDL_RenderCopy(rend, tex, NULL, NULL);
-  SDL_RenderPresent(rend);
-
-  // TODO: make loop
-  SDL_Delay(5000);
 
   // clean-up
   SDL_DestroyTexture(tex);
